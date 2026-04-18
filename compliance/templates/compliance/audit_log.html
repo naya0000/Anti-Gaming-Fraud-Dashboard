@@ -1,0 +1,62 @@
+{% extends "compliance/base.html" %}
+{% block title %}Audit Trail &middot; Anti-Gaming Console{% endblock %}
+
+{% block content %}
+<h3 class="text-light mb-3">
+  <i class="bi bi-journal-check text-success"></i>
+  Compliance Audit Trail
+  <span class="small text-secondary ms-2">Immutable record for FSC audits</span>
+</h3>
+
+<p class="small text-secondary">
+  Every manager action on a flagged session is permanently logged here.
+  This table is append-only — records cannot be edited or deleted.
+</p>
+
+<div class="card console-card">
+  <div class="table-responsive">
+    <table class="table table-console table-hover mb-0">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Manager</th>
+          <th>Action</th>
+          <th>Flag</th>
+          <th>Agent</th>
+          <th>Rule</th>
+          <th>Justification</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+          <tr>
+            <td class="small text-secondary">{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
+            <td>{{ log.manager_name }}</td>
+            <td>
+              {% if log.action_taken == 'approved' %}
+                <span class="badge bg-success">{{ log.get_action_taken_display }}</span>
+              {% elif log.action_taken == 'voided' %}
+                <span class="badge bg-warning text-dark">{{ log.get_action_taken_display }}</span>
+              {% elif log.action_taken == 'escalated' %}
+                <span class="badge bg-danger">{{ log.get_action_taken_display }}</span>
+              {% endif %}
+            </td>
+            <td><a href="{% url 'forensic_timeline' log.flag.id %}" class="text-info text-decoration-none code-mini">#{{ log.flag.id }}</a></td>
+            <td>
+              {{ log.flag.agent.full_name }}
+              <div class="small text-secondary">{{ log.flag.agent.agent_code }}</div>
+            </td>
+            <td>
+              <span class="sev-pill sev-{{ log.flag.rule_violated.severity_level }}">{{ log.flag.rule_violated.severity_level }}</span>
+              {{ log.flag.rule_violated.rule_name }}
+            </td>
+            <td class="small text-secondary">"{{ log.manager_justification_notes }}"</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="7" class="text-center text-secondary py-4">No audit events yet. Resolve a flag to start the trail.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

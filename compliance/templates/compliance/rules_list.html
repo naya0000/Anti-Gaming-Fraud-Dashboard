@@ -1,0 +1,59 @@
+{% extends "compliance/base.html" %}
+{% block title %}Rules Engine &middot; Anti-Gaming Console{% endblock %}
+
+{% block content %}
+<h3 class="text-light mb-3">
+  <i class="bi bi-sliders text-info"></i>
+  Dynamic Rules Engine
+  <span class="small text-secondary ms-2">The Logic Dictionary</span>
+</h3>
+
+<p class="small text-secondary">
+  Thresholds are configurable via <code>parameter_json</code> — the backend scanner
+  re-reads them live rather than relying on hardcoded values (per Project 6 spec).
+  Edit rules in <a href="/admin/compliance/compliancerule/" class="text-info">Django admin</a>.
+</p>
+
+<div class="card console-card">
+  <div class="table-responsive">
+    <table class="table table-console table-hover mb-0">
+      <thead>
+        <tr>
+          <th style="width: 80px;">Sev</th>
+          <th>Rule Name</th>
+          <th>Description</th>
+          <th>Parameters (JSON)</th>
+          <th>Active</th>
+          <th>Total / Pending Flags</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rules %}
+          <tr>
+            <td><span class="sev-pill sev-{{ r.severity_level }}">{{ r.severity_level }}</span></td>
+            <td class="fw-semibold">{{ r.rule_name }}</td>
+            <td class="small text-secondary">{{ r.description }}</td>
+            <td><code class="code-mini">{{ r.parameter_json }}</code></td>
+            <td>
+              {% if r.is_active %}
+                <span class="badge bg-success">active</span>
+              {% else %}
+                <span class="badge bg-secondary">paused</span>
+              {% endif %}
+            </td>
+            <td class="small">
+              <span class="evidence-val">{{ r.total_flags }}</span>
+              <span class="evidence-key">total</span>
+              &middot;
+              <span class="evidence-val text-warning">{{ r.pending_flags }}</span>
+              <span class="evidence-key">pending</span>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="text-center text-secondary">No rules configured.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

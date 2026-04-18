@@ -1,0 +1,247 @@
+{% extends "compliance/base.html" %}
+{% block title %}Forensic Timeline &middot; Flag #{{ flag.id }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb small">
+    <li class="breadcrumb-item"><a href="{% url 'risk_inbox' %}" class="text-secondary">Risk Inbox</a></li>
+    <li class="breadcrumb-item active text-light">Flag #{{ flag.id }}</li>
+  </ol>
+</nav>
+
+<div class="d-flex align-items-center mb-3 flex-wrap gap-2">
+  <h3 class="text-light m-0">
+    <i class="bi bi-search text-warning"></i>
+    Forensic Timeline
+    <span class="code-mini ms-2">Flag #{{ flag.id }}</span>
+  </h3>
+  <span class="sev-pill sev-{{ flag.severity }} ms-2">{{ flag.severity }}</span>
+  {% if flag.resolution_status == 'pending' %}
+    <span class="badge bg-secondary">Pending</span>
+  {% elif flag.resolution_status == 'approved' %}
+    <span class="badge bg-success">Approved</span>
+  {% elif flag.resolution_status == 'voided' %}
+    <span class="badge bg-warning text-dark">Voided</span>
+  {% elif flag.resolution_status == 'escalated' %}
+    <span class="badge bg-danger">Escalated</span>
+  {% endif %}
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-4">
+    <div class="card console-card">
+      <div class="card-body">
+        <div class="small text-secondary text-uppercase">Agent</div>
+        <div class="h5 text-light">{{ flag.agent.full_name }}</div>
+        <div class="small text-secondary">{{ flag.agent.agent_code }} &middot; {{ flag.agent.branch }}</div>
+        <div class="small text-secondary">{{ flag.agent.role }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card console-card">
+      <div class="card-body">
+        <div class="small text-secondary text-uppercase">Module</div>
+        <div class="h5 text-light">{{ flag.session.module.title }}</div>
+        <div class="small text-secondary">Topic: {{ flag.session.module.topic }}</div>
+        <div class="small text-secondary">
+          Company avg: {{ flag.session.module.company_avg_seconds }}s &middot;
+          Target: {{ flag.session.module.expected_duration_seconds }}s
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card console-card">
+      <div class="card-body">
+        <div class="small text-secondary text-uppercase">Session Telemetry</div>
+        <div class="small">
+          <div><span class="evidence-key">Total time:</span>
+            <span class="evidence-val">{{ flag.session.total_time_seconds }}s</span></div>
+          <div><span class="evidence-key">Quiz score:</span>
+            <span class="evidence-val">{{ flag.session.quiz_score_percent }}%</span></div>
+          <div><span class="evidence-key">Quiz time:</span>
+            <span class="evidence-val">{{ flag.session.quiz_time_seconds }}s</span></div>
+          <div><span class="evidence-key">Tab switches:</span>
+            <span class="evidence-val">{{ flag.session.tab_switch_count }}</span></div>
+          <div><span class="evidence-key">Started:</span>
+            <span class="evidence-val">{{ flag.session.started_at|date:"Y-m-d H:i:s" }}</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card console-card mb-3">
+  <div class="card-body">
+    <div class="d-flex align-items-center mb-2">
+      <div class="flex-grow-1">
+        <div class="small text-secondary text-uppercase">Rule Violated</div>
+        <div class="h5 text-light">{{ flag.rule_violated.rule_name }}</div>
+        {% if flag.rule_violated.description %}
+          <div class="small text-secondary">{{ flag.rule_violated.description }}</div>
+        {% endif %}
+      </div>
+      <div>
+        <div class="small text-secondary">Automated Penalty</div>
+        <div class="small">
+          {% if flag.leaderboard_points_revoked %}
+            <span class="badge bg-danger">Leaderboard points revoked</span>
+          {% endif %}
+          {% if flag.streak_shield_locked %}
+            <span class="badge bg-warning text-dark">Streak shield locked</span>
+          {% endif %}
+          {% if not flag.leaderboard_points_revoked and not flag.streak_shield_locked %}
+            <span class="text-secondary">&mdash;</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="small mb-2 text-secondary text-uppercase">Evidence captured by rules engine</div>
+    <div class="row small">
+      {% for k, v in flag.evidence.items %}
+        <div class="col-md-4">
+          <span class="evidence-key">{{ k }}:</span>
+          <span class="evidence-val">{{ v }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{# ------------------------------------------------------------------- #}
+{# The Forensic Timeline                                               #}
+{# ------------------------------------------------------------------- #}
+<div class="card console-card mb-3">
+  <div class="card-body">
+    <h5 class="text-light mb-3">
+      <i class="bi bi-activity text-warning"></i>
+      Session Playback ({{ total_span }}s span)
+    </h5>
+    <div class="timeline">
+      {# markers on the axis #}
+      <div style="position: relative; height: 90px;">
+        {% for row in event_rows %}
+          <div class="timeline-marker evt-{{ row.event.event_type }}"
+               style="left: {{ row.percent }}%;">
+            <div class="dot"></div>
+            <div class="offset">{{ row.event.offset_label }}</div>
+            <div class="label">{{ row.event.get_event_type_display }}{% if row.event.detail %}<br>{{ row.event.detail }}{% endif %}</div>
+          </div>
+        {% endfor %}
+      </div>
+      <div class="timeline-axis">
+        <div class="tick" style="left: 0%;"><span class="tick-label">0:00</span></div>
+        <div class="tick" style="left: 25%;"><span class="tick-label">25%</span></div>
+        <div class="tick" style="left: 50%;"><span class="tick-label">50%</span></div>
+        <div class="tick" style="left: 75%;"><span class="tick-label">75%</span></div>
+        <div class="tick" style="left: 100%;"><span class="tick-label">end</span></div>
+      </div>
+    </div>
+
+    <table class="table table-console table-sm mt-4 mb-0">
+      <thead>
+        <tr>
+          <th style="width: 80px;">Offset</th>
+          <th>Event</th>
+          <th>Detail</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in event_rows %}
+          <tr>
+            <td class="code-mini">{{ row.event.offset_label }}</td>
+            <td>{{ row.event.get_event_type_display }}</td>
+            <td class="small text-secondary">{{ row.event.detail|default:"—" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="3" class="text-center text-secondary">No telemetry events recorded.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# Other flags on the same session #}
+{% if related_flags %}
+<div class="card console-card mb-3">
+  <div class="card-body">
+    <h6 class="text-light mb-2">
+      <i class="bi bi-link-45deg"></i> Other rules this session also triggered
+    </h6>
+    <ul class="list-unstyled m-0 small">
+      {% for r in related_flags %}
+        <li>
+          <span class="sev-pill sev-{{ r.rule_violated.severity_level }} me-2">{{ r.rule_violated.severity_level }}</span>
+          <a href="{% url 'forensic_timeline' r.id %}" class="text-info text-decoration-none">
+            {{ r.rule_violated.rule_name }}
+          </a>
+          <span class="text-secondary ms-2">({{ r.get_resolution_status_display }})</span>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endif %}
+
+{# ------------------------------------------------------------------- #}
+{# Audit trail already recorded                                        #}
+{# ------------------------------------------------------------------- #}
+{% if audit_logs %}
+<div class="card console-card mb-3">
+  <div class="card-body">
+    <h6 class="text-light mb-2"><i class="bi bi-journal-check"></i> Audit Trail</h6>
+    <ul class="list-unstyled m-0 small">
+      {% for log in audit_logs %}
+        <li class="mb-2">
+          <span class="code-mini">{{ log.timestamp|date:"Y-m-d H:i" }}</span>
+          <strong>{{ log.manager_name }}</strong>
+          took action <em>{{ log.get_action_taken_display }}</em>
+          <div class="text-secondary ms-3">"{{ log.manager_justification_notes }}"</div>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endif %}
+
+{# ------------------------------------------------------------------- #}
+{# Resolution Action Bar                                               #}
+{# ------------------------------------------------------------------- #}
+{% if flag.resolution_status == 'pending' %}
+<div class="resolution-bar">
+  <form method="post">
+    {% csrf_token %}
+    <div class="row g-3 align-items-start">
+      <div class="col-md-3">
+        <label class="form-label small text-secondary text-uppercase">Manager Name</label>
+        {{ form.manager_name }}
+        {% for err in form.manager_name.errors %}<div class="small text-danger">{{ err }}</div>{% endfor %}
+      </div>
+      <div class="col-md-5">
+        <label class="form-label small text-secondary text-uppercase">Justification Notes (FSC audited)</label>
+        {{ form.manager_justification_notes }}
+        {% for err in form.manager_justification_notes.errors %}<div class="small text-danger">{{ err }}</div>{% endfor %}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small text-secondary text-uppercase">Action</label>
+        <div>
+          {% for radio in form.action_taken %}
+            <div class="form-check">
+              {{ radio.tag }}
+              <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
+            </div>
+          {% endfor %}
+          {% for err in form.action_taken.errors %}<div class="small text-danger">{{ err }}</div>{% endfor %}
+        </div>
+        <button type="submit" class="btn btn-primary btn-resolution mt-2">
+          <i class="bi bi-check-circle"></i> Submit Resolution
+        </button>
+      </div>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+{% endblock %}

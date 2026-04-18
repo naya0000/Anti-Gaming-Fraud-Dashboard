@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Django
+*.sqlite3
+*.sqlite3-journal
+db.sqlite3
+local_settings.py
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Static/media collected
+/static_collected/
+/media/
+
+# Logs
+*.log
+
+# Stray probe files (can't be deleted on some sandbox FS mounts)
+test.db
+test.db-journal
+test_write.tmp

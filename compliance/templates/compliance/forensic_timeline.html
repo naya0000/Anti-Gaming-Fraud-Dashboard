@@ -196,7 +196,7 @@
       {% for log in audit_logs %}
         <li class="mb-2">
           <span class="code-mini">{{ log.timestamp|date:"Y-m-d H:i" }}</span>
-          <strong>{{ log.manager_name }}</strong>
+          <strong>{{ log.manager_id }}</strong>
           took action <em>{{ log.get_action_taken_display }}</em>
           <div class="text-secondary ms-3">"{{ log.manager_justification_notes }}"</div>
         </li>
@@ -215,9 +215,9 @@
     {% csrf_token %}
     <div class="row g-3 align-items-start">
       <div class="col-md-3">
-        <label class="form-label small text-secondary text-uppercase">Manager Name</label>
-        {{ form.manager_name }}
-        {% for err in form.manager_name.errors %}<div class="small text-danger">{{ err }}</div>{% endfor %}
+        <label class="form-label small text-secondary text-uppercase">Manager ID</label>
+        {{ form.manager_id }}
+        {% for err in form.manager_id.errors %}<div class="small text-danger">{{ err }}</div>{% endfor %}
       </div>
       <div class="col-md-5">
         <label class="form-label small text-secondary text-uppercase">Justification Notes (FSC audited)</label>

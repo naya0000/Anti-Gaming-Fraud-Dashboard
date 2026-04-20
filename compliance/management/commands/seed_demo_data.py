@@ -6,14 +6,14 @@ Produces:
   * 6 training modules (mix of topics FSC / AML / ILP / etc.)
   * ~80 training sessions (mix of clean + rule-violating patterns)
   * Telemetry events for each session so the Forensic Timeline has content
-  * 4 compliance rules (3 from spec + 1 bonus)
+  * 3 compliance rules (all from spec)
   * Runs the rules engine over every session -> creates FlaggedSession rows
   * Adds a couple of already-resolved flags so the Audit Trail has content
 """
 import random
 from datetime import timedelta
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
@@ -26,6 +26,7 @@ from compliance.models import (
     TrainingModule,
     TrainingSession,
 )
+from compliance.settings_utils import immutable_audit_log_enabled
 from compliance.services import evaluate_session, resolve_flag
 
 
@@ -71,7 +72,7 @@ RULES = [
     dict(
         rule_name='Impossible Speed (R1)',
         description='Completion time is less than 20% of the company average for that module.',
-        severity_level='High',
+        severity_level='Med',
         parameter_json={'detector': 'speeding', 'speed_ratio_threshold': 0.2},
     ),
     dict(
@@ -87,18 +88,8 @@ RULES = [
     dict(
         rule_name='Distraction Overload (R3)',
         description='Agent switches browser tabs more than 5 times during a 7-minute sprint.',
-        severity_level='Med',
-        parameter_json={'detector': 'distraction', 'max_tab_switches': 5},
-    ),
-    dict(
-        rule_name='Impossible Speed Verification (Bonus)',
-        description='Finished in under 30s but still scored 100% — statistically implausible.',
         severity_level='Low',
-        parameter_json={
-            'detector': 'perfect_score_too_fast',
-            'min_time_seconds': 30,
-            'requires_100_score': True,
-        },
+        parameter_json={'detector': 'distraction', 'max_tab_switches': 5},
     ),
 ]
 
@@ -111,19 +102,20 @@ def _make_timeline_clean(session: TrainingSession):
     events = []
     events.append(TelemetryEvent(session=session, offset_seconds=0,
                                   event_type='start', detail='Session started'))
-    card_gap = max(60, (session.total_time_seconds - session.quiz_time_seconds) //
-                   session.module.card_count)
+    quiz_start = max(1, session.total_time_seconds - session.quiz_time_seconds)
+    card_gap = max(1, (quiz_start - 10) // max(session.module.card_count, 1))
     cursor = 10
     for i in range(session.module.card_count):
-        events.append(TelemetryEvent(session=session, offset_seconds=cursor,
+        view_offset = min(cursor, max(quiz_start - 2, 1))
+        events.append(TelemetryEvent(session=session, offset_seconds=view_offset,
                                       event_type='card_view',
                                       detail=f'Card {i+1}/{session.module.card_count}'))
-        cursor += card_gap - 5
-        events.append(TelemetryEvent(session=session, offset_seconds=cursor,
+        cursor = view_offset + max(card_gap - 5, 1)
+        swipe_offset = min(cursor, max(quiz_start - 1, 1))
+        events.append(TelemetryEvent(session=session, offset_seconds=swipe_offset,
                                       event_type='card_swipe',
                                       detail=f'Swiped card {i+1}'))
-        cursor += 5
-    quiz_start = session.total_time_seconds - session.quiz_time_seconds
+        cursor = swipe_offset + 5
     events.append(TelemetryEvent(session=session, offset_seconds=quiz_start,
                                   event_type='quiz_start'))
     for q in range(session.module.quiz_question_count):
@@ -169,6 +161,7 @@ def _make_timeline_speeding(session: TrainingSession):
 def _make_timeline_distraction(session: TrainingSession):
     events = [TelemetryEvent(session=session, offset_seconds=0,
                               event_type='start', detail='Session started')]
+    session_end = session.total_time_seconds
     cursor = 5
     for i in range(session.tab_switch_count):
         app = random.choice(DISTRACTION_APPS)
@@ -176,17 +169,21 @@ def _make_timeline_distraction(session: TrainingSession):
                                       event_type='tab_switch_away',
                                       detail=f'Switched to {app}'))
         cursor += random.randint(4, 12)
+        if cursor >= session_end:
+            break
         events.append(TelemetryEvent(session=session, offset_seconds=cursor,
                                       event_type='tab_switch_back',
                                       detail='Returned to training'))
         cursor += random.randint(20, 60)
-    quiz_start = max(cursor, session.total_time_seconds - session.quiz_time_seconds)
+        if cursor >= session_end:
+            break
+    quiz_start = min(session_end, max(cursor, session_end - session.quiz_time_seconds))
     events.append(TelemetryEvent(session=session, offset_seconds=quiz_start,
                                   event_type='quiz_start'))
-    events.append(TelemetryEvent(session=session, offset_seconds=session.total_time_seconds,
+    events.append(TelemetryEvent(session=session, offset_seconds=session_end,
                                   event_type='quiz_submit',
                                   detail=f'Score: {session.quiz_score_percent}%'))
-    events.append(TelemetryEvent(session=session, offset_seconds=session.total_time_seconds,
+    events.append(TelemetryEvent(session=session, offset_seconds=session_end,
                                   event_type='complete'))
     return events
 
@@ -226,8 +223,13 @@ class Command(BaseCommand):
     @transaction.atomic
     def handle(self, *args, **opts):
         if opts['fresh']:
+            if immutable_audit_log_enabled() and ComplianceAuditLog.objects.exists():
+                raise CommandError(
+                    'Cannot wipe immutable audit logs. Use a new database path for a fresh demo dataset.'
+                )
             self.stdout.write('Wiping existing demo data...')
-            ComplianceAuditLog.objects.all().delete()
+            if not immutable_audit_log_enabled():
+                ComplianceAuditLog.objects.all().delete()
             FlaggedSession.objects.all().delete()
             TelemetryEvent.objects.all().delete()
             TrainingSession.objects.all().delete()
@@ -265,8 +267,8 @@ class Command(BaseCommand):
         self.stdout.write(f'  + {len(RULES)} compliance rules')
 
         # --- Training Sessions ---
-        # Distribution: ~60% clean, ~15% speeding, ~10% guessing,
-        # ~10% distraction, ~5% perfect-but-fast.
+        # Distribution: ~60% clean, ~15% speeding, ~13% guessing,
+        # ~13% distraction.
         now = timezone.now()
         created_sessions = 0
         flags_created_total = 0
@@ -274,9 +276,8 @@ class Command(BaseCommand):
         profiles = (
             ['clean'] * 40 +
             ['speeding'] * 12 +
-            ['guessing'] * 10 +
-            ['distraction'] * 10 +
-            ['perfect_fast'] * 6
+            ['guessing'] * 13 +
+            ['distraction'] * 13
         )
         random.shuffle(profiles)
 
@@ -316,12 +317,6 @@ class Command(BaseCommand):
                 score = random.choice([67, 100, 33])
                 tabs = random.randint(6, 12)
                 timeline_fn = _make_timeline_distraction
-            elif profile == 'perfect_fast':
-                total = random.randint(15, 28)
-                quiz_time = random.randint(3, 8)
-                score = 100
-                tabs = 0
-                timeline_fn = _make_timeline_speeding
             else:
                 continue
 
@@ -352,21 +347,21 @@ class Command(BaseCommand):
             resolve_flag(
                 sample_flags[0],
                 action='voided',
-                manager_name='Angela Wang',
+                manager_id='angela.wang',
                 notes='Session time impossible given module content. Retake required.',
             )
             if len(sample_flags) > 1:
                 resolve_flag(
                     sample_flags[1],
                     action='escalated',
-                    manager_name='David Chen',
+                    manager_id='david.chen',
                     notes='Repeated R2 pattern across multiple modules. HR review needed.',
                 )
             if len(sample_flags) > 2:
                 resolve_flag(
                     sample_flags[2],
                     action='approved',
-                    manager_name='Angela Wang',
+                    manager_id='angela.wang',
                     notes='Agent on known fast-reading profile; session verified legitimate.',
                 )
             self.stdout.write('  + 3 sample audit-log entries')

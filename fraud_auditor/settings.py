@@ -120,6 +120,12 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# Toggle whether compliance audit logs behave as strictly immutable records.
+COMPLIANCE_IMMUTABLE_AUDIT_LOG = os.environ.get(
+    'COMPLIANCE_IMMUTABLE_AUDIT_LOG',
+    '1',
+).lower() not in {'0', 'false', 'off', 'no'}
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 

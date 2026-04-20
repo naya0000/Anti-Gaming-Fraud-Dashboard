@@ -72,29 +72,12 @@ def _distraction(session: TrainingSession, params: dict) -> Tuple[bool, dict]:
     }
 
 
-def _perfect_score_too_fast(session: TrainingSession, params: dict) -> Tuple[bool, dict]:
-    """Optional bonus rule - flagged as 'Impossible Speed Verification' in spec example."""
-    min_time_seconds = int(params.get('min_time_seconds', 30))
-    requires_100 = bool(params.get('requires_100_score', True))
-    violated = (
-        session.total_time_seconds < min_time_seconds
-        and ((not requires_100) or session.quiz_score_percent == 100)
-    )
-    return violated, {
-        'actual_time_seconds': session.total_time_seconds,
-        'quiz_score_percent': session.quiz_score_percent,
-        'min_time_seconds': min_time_seconds,
-        'requires_100_score': requires_100,
-    }
-
-
 # Each ComplianceRule row carries a `parameter_json["detector"]` key telling
 # us which function to run. This is the only coupling between DB and code.
 DETECTORS: Dict[str, Detector] = {
     'speeding': _speeding,
     'pattern_guessing': _pattern_guessing,
     'distraction': _distraction,
-    'perfect_score_too_fast': _perfect_score_too_fast,
 }
 
 
@@ -136,7 +119,7 @@ def evaluate_session(session: TrainingSession) -> list[FlaggedSession]:
 def resolve_flag(
     flag: FlaggedSession,
     action: str,
-    manager_name: str,
+    manager_id: str,
     notes: str,
 ) -> ComplianceAuditLog:
     """
@@ -144,6 +127,9 @@ def resolve_flag(
     The flag itself is mutated (resolution_status), but the audit trail is
     append-only.
     """
+    if flag.resolution_status != 'pending':
+        raise ValueError('Flag has already been resolved.')
+
     valid_actions = {a for a, _ in ComplianceAuditLog.ACTION_CHOICES}
     if action not in valid_actions:
         raise ValueError(f'Invalid action: {action}')
@@ -161,7 +147,7 @@ def resolve_flag(
 
     return ComplianceAuditLog.objects.create(
         flag=flag,
-        manager_name=manager_name or 'Compliance Officer',
+        manager_id=manager_id or 'compliance.officer',
         action_taken=action,
         manager_justification_notes=notes or '',
     )

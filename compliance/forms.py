@@ -9,12 +9,12 @@ class ResolveFlagForm(forms.Form):
         choices=ComplianceAuditLog.ACTION_CHOICES,
         widget=forms.RadioSelect,
     )
-    manager_name = forms.CharField(
+    manager_id = forms.CharField(
         max_length=100,
         required=True,
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': 'e.g. Angela Wang',
+            'placeholder': 'e.g. angela.wang',
         }),
     )
     manager_justification_notes = forms.CharField(

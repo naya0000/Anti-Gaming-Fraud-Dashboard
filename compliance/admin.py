@@ -9,6 +9,7 @@ from .models import (
     TrainingModule,
     TrainingSession,
 )
+from .settings_utils import immutable_audit_log_enabled
 
 
 @admin.register(Agent)
@@ -61,9 +62,20 @@ class FlaggedSessionAdmin(admin.ModelAdmin):
 
 @admin.register(ComplianceAuditLog)
 class ComplianceAuditLogAdmin(admin.ModelAdmin):
-    list_display = ('id', 'flag', 'manager_name', 'action_taken', 'timestamp')
+    list_display = ('id', 'flag', 'manager_id', 'action_taken', 'timestamp')
     list_filter = ('action_taken',)
-    search_fields = ('manager_name',)
-    # Immutable-ish: prevent deletion from admin to honor audit trail intent
+    search_fields = ('manager_id',)
+    readonly_fields = ('flag', 'manager_id', 'action_taken', 'manager_justification_notes', 'timestamp')
+
+    def has_add_permission(self, request):
+        return not immutable_audit_log_enabled()
+
+    def has_change_permission(self, request, obj=None):
+        if immutable_audit_log_enabled():
+            return request.method in ('GET', 'HEAD', 'OPTIONS')
+        return super().has_change_permission(request, obj)
+
     def has_delete_permission(self, request, obj=None):
-        return False
+        if immutable_audit_log_enabled():
+            return False
+        return super().has_delete_permission(request, obj)

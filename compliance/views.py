@@ -76,7 +76,7 @@ def forensic_timeline(request, flag_id: int):
             resolve_flag(
                 flag,
                 action=form.cleaned_data['action_taken'],
-                manager_name=form.cleaned_data['manager_name'],
+                manager_id=form.cleaned_data['manager_id'],
                 notes=form.cleaned_data['manager_justification_notes'],
             )
             messages.success(

@@ -40,7 +40,7 @@ pip install -r requirements.txt
 
 # 3. Migrate and seed mock data (20 agents, ~80 sessions, 50 flags)
 python manage.py migrate
-python manage.py seed_demo_data --fresh
+python manage.py seed_demo_data
 
 # 4. (Optional) Create a Django admin user to edit rules / data live
 python manage.py createsuperuser
@@ -50,6 +50,21 @@ python manage.py runserver 0.0.0.0:8000
 ```
 
 Open `http://localhost:8000/` — you land on the Risk Inbox straight away.
+
+### Immutable audit log toggle
+
+By default, audit logs are treated as immutable to match the Project 6
+compliance requirement. You can temporarily disable that behavior with the
+`COMPLIANCE_IMMUTABLE_AUDIT_LOG` environment variable.
+
+```bash
+# Default / strict mode
+COMPLIANCE_IMMUTABLE_AUDIT_LOG=1 python manage.py runserver
+
+# Allow updating/deleting audit logs and permit `seed_demo_data --fresh`
+COMPLIANCE_IMMUTABLE_AUDIT_LOG=0 python manage.py seed_demo_data --fresh
+COMPLIANCE_IMMUTABLE_AUDIT_LOG=0 python manage.py runserver
+```
 
 ### Key routes
 
@@ -85,7 +100,7 @@ Maps directly onto the Project 6 spec (see `compliance/models.py`):
 
 ┌─ ComplianceAuditLog ─────────┐  The Immutable Record
 │ audit_id (PK), flag (FK),    │  append-only; admin deletion blocked
-│ manager_name, action_taken,  │
+│ manager_id, action_taken,    │
 │ manager_justification_notes, │
 │ timestamp                    │
 └──────────────────────────────┘
@@ -107,7 +122,6 @@ iterates `ComplianceRule.objects.filter(is_active=True)`, reads each rule's
 | `speeding`                | R1: completion time < `speed_ratio_threshold` × company average      |
 | `pattern_guessing`        | R2: quiz finished in ≤ `max_quiz_seconds` with ≤ `max_score_percent` |
 | `distraction`             | R3: tab switches > `max_tab_switches` in a sprint                    |
-| `perfect_score_too_fast`  | Bonus: completed < `min_time_seconds` but still scored 100%          |
 
 Adding a new rule = adding a row in `ComplianceRule` (no redeploy) or, for a
 new algorithm, a new function + `DETECTORS` entry in `services.py`.
@@ -134,7 +148,7 @@ compliance/               # The app
 ├── urls.py
 ├── admin.py              # Django admin config (audit log is delete-protected)
 ├── management/commands/
-│   └── seed_demo_data.py # `python manage.py seed_demo_data --fresh`
+│   └── seed_demo_data.py # `python manage.py seed_demo_data`
 ├── templates/compliance/
 │   ├── base.html
 │   ├── risk_inbox.html
@@ -154,6 +168,6 @@ error` (some FUSE mounts / shared folders disallow SQLite's file locks), set
 
 ```bash
 DATABASE_PATH=/tmp/fraud_auditor.sqlite3 python manage.py migrate
-DATABASE_PATH=/tmp/fraud_auditor.sqlite3 python manage.py seed_demo_data --fresh
+DATABASE_PATH=/tmp/fraud_auditor.sqlite3 python manage.py seed_demo_data
 DATABASE_PATH=/tmp/fraud_auditor.sqlite3 python manage.py runserver
 ```

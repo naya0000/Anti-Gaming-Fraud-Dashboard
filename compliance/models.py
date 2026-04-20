@@ -11,7 +11,10 @@ Plus supporting models that give us the telemetry the rules engine needs
 (Agent, TrainingModule, TrainingSession, TelemetryEvent). These are the
 "P2/P3 data" referenced by the spec's session_id foreign key.
 """
+from django.core.exceptions import ValidationError
 from django.db import models
+
+from .settings_utils import immutable_audit_log_enabled
 
 
 # --------------------------------------------------------------------------- #
@@ -228,7 +231,7 @@ class ComplianceAuditLog(models.Model):
         on_delete=models.PROTECT,
         related_name='audit_logs',
     )
-    manager_name = models.CharField(max_length=100, default='Compliance Officer')
+    manager_id = models.CharField(max_length=100, default='compliance.officer')
     action_taken = models.CharField(max_length=20, choices=ACTION_CHOICES)
     manager_justification_notes = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
@@ -236,5 +239,19 @@ class ComplianceAuditLog(models.Model):
     class Meta:
         ordering = ['-timestamp']
 
+    def save(self, *args, **kwargs):
+        if (
+            immutable_audit_log_enabled()
+            and self.pk
+            and ComplianceAuditLog.objects.filter(pk=self.pk).exists()
+        ):
+            raise ValidationError('Compliance audit logs are immutable.')
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        if immutable_audit_log_enabled():
+            raise ValidationError('Compliance audit logs cannot be deleted.')
+        return super().delete(*args, **kwargs)
+
     def __str__(self):
-        return f"Audit #{self.id} - {self.action_taken} by {self.manager_name}"
+        return f"Audit #{self.id} - {self.action_taken} by {self.manager_id}"

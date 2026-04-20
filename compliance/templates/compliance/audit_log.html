@@ -9,7 +9,7 @@
 </h3>
 
 <p class="small text-secondary">
-  Every manager action on a flagged session is permanently logged here.
+          Every manager action on a flagged session is permanently logged here.
   This table is append-only — records cannot be edited or deleted.
 </p>
 
@@ -19,7 +19,7 @@
       <thead>
         <tr>
           <th>When</th>
-          <th>Manager</th>
+          <th>Manager ID</th>
           <th>Action</th>
           <th>Flag</th>
           <th>Agent</th>
@@ -31,7 +31,7 @@
         {% for log in logs %}
           <tr>
             <td class="small text-secondary">{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
-            <td>{{ log.manager_name }}</td>
+            <td>{{ log.manager_id }}</td>
             <td>
               {% if log.action_taken == 'approved' %}
                 <span class="badge bg-success">{{ log.get_action_taken_display }}</span>

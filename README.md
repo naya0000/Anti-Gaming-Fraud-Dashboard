@@ -1,4 +1,4 @@
-# Anti-Gaming Fraud Dashboard & Compliance Auditor (Project 6)
+# Anti-Gaming Fraud Dashboard & Compliance Auditor
 
 A Django web console that helps a financial holding company detect agents who
 "game" mandatory FSC compliance training — speed-clicking, blind-guessing on
@@ -6,8 +6,6 @@ quizzes, or browsing social apps while the clock ticks — and gives Branch
 Managers / Compliance Officers a forensic view plus a resolution workflow
 backed by an immutable audit trail.
 
-This implements **Project 6: The "Anti-Gaming" Fraud Dashboard & Compliance
-Auditor** from the project spec (see `docs/` in the original brief).
 
 ---
 
